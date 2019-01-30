@@ -2,13 +2,14 @@ package watcher
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"github.com/jmoiron/jsonq"
 	"gocd-stage-trigger/gocdcli"
+	"gocd-stage-trigger/triggercli"
 	"strings"
 )
 
-func getPipelineNames() ([]string, error) {
+func watchPipelineNames() ([]string, error) {
 	var (
 		pipelineOuterJsonResponseBytes string
 		e                              error
@@ -36,7 +37,7 @@ type Stage struct {
 	StageName    string
 }
 
-func getProtectedStages(pipelineNames []string) ([]*Stage, error) {
+func watchProtectedStages(pipelineNames []string) ([]*Stage, error) {
 	var (
 		pipelineConfigJsonResponseString string
 		e                                error
@@ -66,20 +67,50 @@ func getProtectedStages(pipelineNames []string) ([]*Stage, error) {
 	return stages, nil
 }
 
+type TriggerResponse struct {
+	Code    int32  `json:"code"`
+	Message string `json:"message"`
+}
+
+func watchTrigger(pipelineName string) error {
+	var (
+		statusJsonResponseString string
+		e                        error
+		triggerResponse          TriggerResponse
+	)
+	if statusJsonResponseString, e = triggercli.QueryTriggerStatus(pipelineName); e != nil {
+		return e
+	}
+	if e = json.Unmarshal([]byte(statusJsonResponseString), &triggerResponse); e != nil {
+		return e
+	}
+	if triggerResponse.Code == 300 {
+		return errors.New("not confirm")
+	}
+	if triggerResponse.Code == 200 {
+
+	}
+	return nil
+}
+
+func triggerDeployStage() {
+
+}
+
 func Run() error {
 	var (
 		pipelineNames   []string
 		protectedStages []*Stage
 		e               error
 	)
-	if pipelineNames, e = getPipelineNames(); e != nil {
+	if pipelineNames, e = watchPipelineNames(); e != nil {
 		return e
 	}
-	if protectedStages, e = getProtectedStages(pipelineNames); e != nil {
+	if protectedStages, e = watchProtectedStages(pipelineNames); e != nil {
 		return e
 	}
 	for _, protectedStage := range protectedStages {
-		fmt.Println(protectedStage)
+		watchTrigger(protectedStage.PipelineName)
 	}
 	return nil
 }
